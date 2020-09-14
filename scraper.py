@@ -1,9 +1,9 @@
-import scrapy
+import scrapy, re
 
 class FunkSpider(scrapy.Spider):
     name = 'funk_spider'
     start_urls = ['https://www.letras.com.br/top-letras-musicas/funk']
-    songs = []
+    songs = ''
     song_cnt = 0
 
     def parse(self, response):
@@ -30,22 +30,20 @@ class FunkSpider(scrapy.Spider):
             ARTIST_SELECTOR = '.subtitle ::text'
 
             name = response.css(NAME_SELECTOR).get()
+            self.songs += "+%s+," % name
             artist = response.css(ARTIST_SELECTOR).get()
+            self.songs += "+%s+," % artist
 
             ## Get lyrics
-            lyric = []
             LYRICS_SELECTOR = '.lyrics-section'
             lyrics = response.css(LYRICS_SELECTOR)
 
+            self.songs += "+"
             LINE_SELECTOR = 'p ::text'
             for line in lyrics.css(LINE_SELECTOR):
-                lyric.append(line.get())
-                
-            self.songs.append({'name': name, 'artist': artist, 'lyric': lyric})
-        
-        print('Downloaded: %i lyrics.' % len(self.songs))
+                self.songs += re.sub('\r', '', "%s|" % line.get())
+            self.songs += "+" + "\n"
 
-        ## Writing into dataset.txt
-        with open('dataset.txt', 'w') as dataset:
-            for song in self.songs:
-                dataset.write('%s\n' % song)
+        with open('dataset.csv', 'w') as dataset:
+            dataset.write("name,artist,lyric" + "\n")
+            dataset.write(self.songs)
