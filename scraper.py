@@ -1,49 +1,29 @@
-import scrapy, re
+from time import sleep
 
-class FunkSpider(scrapy.Spider):
-    name = 'funk_spider'
-    start_urls = ['https://www.letras.com.br/top-letras-musicas/funk']
-    songs = ''
-    song_cnt = 0
+from helium import *
 
-    def parse(self, response):
-        ## Check current URL
-        if response.url == self.start_urls[0]:
-            ## Catching all songs
-            ITEM_SELECTOR = '.item-box'
-            items = response.css(ITEM_SELECTOR)
+if __name__ == "__main__":
+    driver = start_chrome('https://www.letras.com.br/top-letras-musicas/funk')
+    items = find_all(S('.item-box'))
+    links = [item.web_element.get_attribute('href') for item in items]
+    rows = []
 
-            self.song_cnt = len(items)
+    for link in links:
+        go_to(link)
+        sleep(2)
+        lyrics = [p.web_element.text for p in find_all(S('.lyrics-section'))]
+        lyric = '|'.join(lyrics)
 
-            for item in items:
-                ## Get song link
-                URL_SELECTOR = 'a ::attr(href)'
-                url = item.css(URL_SELECTOR).extract_first()
+        if lyric and (lyric != 'Ainda não possuímos a letra dessa música =('):
+            print(link)
+            name = S('.title').web_element.text
+            artist = S('.subtitle').web_element.text
+            row = '+' + name + '+,+' + artist + '+,+' + lyric + '+'
+            rows.append(row)
 
-                if url:
-                    ## Go to song page
-                    yield scrapy.FormRequest(url=url, callback=self.parse)
+    kill_browser()
 
-        else:
-            ## Get song title and artist
-            NAME_SELECTOR = '.title ::text'
-            ARTIST_SELECTOR = '.subtitle ::text'
+    with open('./dataset.csv', 'a') as dataset:
+        dataset.write('\n'.join(rows))
 
-            name = response.css(NAME_SELECTOR).get()
-            self.songs += "+%s+," % name
-            artist = response.css(ARTIST_SELECTOR).get()
-            self.songs += "+%s+," % artist
-
-            ## Get lyrics
-            LYRICS_SELECTOR = '.lyrics-section'
-            lyrics = response.css(LYRICS_SELECTOR)
-
-            self.songs += "+"
-            LINE_SELECTOR = 'p ::text'
-            for line in lyrics.css(LINE_SELECTOR):
-                self.songs += re.sub('\r', '', "%s|" % line.get())
-            self.songs += "+" + "\n"
-
-        with open('dataset.csv', 'w') as dataset:
-            dataset.write("name,artist,lyric" + "\n")
-            dataset.write(self.songs)
+    print(f'{len(rows)} new songs added.')
